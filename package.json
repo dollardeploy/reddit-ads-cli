@@ -1,0 +1,36 @@
+{
+  "name": "@dollardeploy/reddit-ads-cli",
+  "version": "1.0.0",
+  "description": "Reddit Ads API v3 client and campaign/creative/conversion management CLI (zero dependencies, uses native fetch)",
+  "main": "api.js",
+  "bin": {
+    "reddit-ads-cli": "cli.js"
+  },
+  "files": [
+    "api.js",
+    "auth.js",
+    "cli.js",
+    "README.md"
+  ],
+  "keywords": [
+    "reddit",
+    "reddit-ads",
+    "ads",
+    "campaigns",
+    "conversions",
+    "capi",
+    "cli"
+  ],
+  "author": "DollarDeploy",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test",
+    "npm:publish": "npm publish --access public"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
