@@ -9,7 +9,7 @@ uses native Node `fetch` against the Reddit Ads API v3.
 
 You need a Reddit OAuth app (script/web app) at
 <https://www.reddit.com/prefs/apps> with a redirect URI of
-`http://localhost:8080`. Its credentials live in `.env.production`:
+`http://localhost:8080`. Its credentials live in `.env.prod`:
 
 export REDDIT_CLIENT_ID=<your-client-id>
 export REDDIT_CLIENT_SECRET=<your-client-secret>
