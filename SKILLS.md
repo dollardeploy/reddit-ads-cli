@@ -13,7 +13,7 @@ API v3.
 ## Setup
 
 ```bash
-export $(grep -E '^REDDIT_(CLIENT_ID|CLIENT_SECRET)=' ../../.env.prod | xargs)
+export $(grep -E '^REDDIT_(CLIENT_ID|CLIENT_SECRET)=' ../../.env.production | xargs)
 node cli.js auth login          # one-time browser OAuth, stores tokens locally
 node cli.js accounts list       # find the ad account id
 node cli.js accounts use <id>   # set it as the default
