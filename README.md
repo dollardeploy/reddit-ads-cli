@@ -14,6 +14,10 @@ You need a Reddit OAuth app (script/web app) at
 export REDDIT_CLIENT_ID=<your-client-id>
 export REDDIT_CLIENT_SECRET=<your-client-secret>
 
+The CLI loads a `.env.production` file from the directory you run from
+automatically on startup. Variables already set in the environment take
+precedence. You can also `export` them yourself instead.
+
 Then authenticate once (opens a browser, stores tokens locally):
 
 ```bash

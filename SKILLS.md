@@ -12,8 +12,14 @@ API v3.
 
 ## Setup
 
+The CLI auto-loads a `.env.production` file from the current directory on
+startup, so run it from wherever that file lives (e.g. the repo root:
+`node tools/reddit-ads-cli/cli.js ...`) and `REDDIT_CLIENT_ID`/
+`REDDIT_CLIENT_SECRET` are picked up without exporting them. If you run from
+`tools/reddit-ads-cli/` instead, export them yourself first:
+`export $(grep -E '^REDDIT_(CLIENT_ID|CLIENT_SECRET)=' ../../.env.production | xargs)`.
+
 ```bash
-export $(grep -E '^REDDIT_(CLIENT_ID|CLIENT_SECRET)=' ../../.env.production | xargs)
 node cli.js auth login          # one-time browser OAuth, stores tokens locally
 node cli.js accounts list       # find the ad account id
 node cli.js accounts use <id>   # set it as the default

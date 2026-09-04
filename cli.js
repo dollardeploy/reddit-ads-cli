@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 "use strict";
 
+if (require("node:fs").existsSync(".env.production")) {
+  process.loadEnvFile(".env.production");
+}
+
 const auth = require("./auth.js");
 
 const parseArgs = argv => {
