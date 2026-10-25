@@ -108,6 +108,13 @@ function RedditAdsAPI(options = {}) {
       list: profileId => request("GET", `/profiles/${enc(profileId)}/creative_assets`),
       get: id => request("GET", `/creative_assets/${enc(id)}`)
     },
+    // Posts are the ad creative: an IMAGE post points at a public media_url.
+    posts: {
+      list: profileId => request("GET", `/profiles/${enc(profileId)}/posts`),
+      create: (profileId, body) =>
+        request("POST", `/profiles/${enc(profileId)}/posts`, { body: wrap(body) }),
+      get: id => request("GET", `/posts/${enc(id)}`)
+    },
     events: {
       send: (pixelId, body) =>
         request("POST", `/pixels/${enc(pixelId)}/conversion_events`, { body: wrap(body) })

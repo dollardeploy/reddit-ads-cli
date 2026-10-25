@@ -27,7 +27,6 @@
     "access": "public"
   },
   "scripts": {
-    "test": "node --test",
     "npm:publish": "npm publish --access public"
   },
   "engines": {

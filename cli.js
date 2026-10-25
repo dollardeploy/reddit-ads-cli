@@ -1,8 +1,14 @@
 #!/usr/bin/env node
 "use strict";
 
-if (require("node:fs").existsSync(".env.production")) {
-  process.loadEnvFile(".env.production");
+// .env.production from the current directory, else the repo root, so the tool also
+// works when run by absolute path from elsewhere (e.g. a Gene program's scratch dir).
+const envFile = [
+  ".env.production",
+  require("node:path").join(__dirname, "../..", ".env.production")
+].find(file => require("node:fs").existsSync(file));
+if (envFile) {
+  process.loadEnvFile(envFile);
 }
 
 const auth = require("./auth.js");
@@ -202,6 +208,17 @@ const formatCreatives = data => {
   }
 };
 
+// Monetary/bid fields are integers in microcurrency (1 USD = 1,000,000).
+const MICROS_PER_USD = 1_000_000;
+const NUMERIC_FIELDS = new Set(["bid_value", "goal_value", "spend_cap"]);
+const REQUIRED_UTM_PARAMS = ["utm_source", "utm_medium", "utm_campaign"];
+
+const splitCsv = value =>
+  String(value)
+    .split(",")
+    .map(item => item.trim())
+    .filter(Boolean);
+
 const typedBody = flags => {
   const body = {};
   const map = {
@@ -215,14 +232,83 @@ const typedBody = flags => {
     adgroup: "ad_group_id",
     start: "start_time",
     end: "end_time",
-    "spend-cap": "spend_cap"
+    "spend-cap": "spend_cap",
+    post: "post_id",
+    "click-url": "click_url"
   };
   for (const [flag, field] of Object.entries(map)) {
     if (flags[flag] !== undefined) {
-      body[field] = flags[flag];
+      body[field] = NUMERIC_FIELDS.has(field) ? Number(flags[flag]) : flags[flag];
+    }
+  }
+  if (flags["daily-usd"] !== undefined) {
+    body.goal_type = "DAILY_SPEND";
+    body.goal_value = Math.round(Number(flags["daily-usd"]) * MICROS_PER_USD);
+  }
+  if (flags.geo !== undefined) {
+    body.targeting = { ...body.targeting, geolocations: splitCsv(flags.geo) };
+  }
+  return body;
+};
+
+// Guards every create/edit: ad URLs must be attributable, daily budgets must stay under
+// REDDIT_ADS_MAX_DAILY_USD when it is set (the per-entity hard cap for automated runs).
+const assertSafeBody = (body, env = process.env) => {
+  if (body.click_url) {
+    const params = new URL(body.click_url).searchParams;
+    const missing = REQUIRED_UTM_PARAMS.filter(param => !params.get(param));
+    if (missing.length) {
+      throw new Error(
+        `click_url is missing ${missing.join(", ")}: tag every ad URL, e.g. ?utm_source=reddit&utm_medium=paid&utm_campaign=<name>`
+      );
+    }
+  }
+  const maxDailyUsd = Number(env.REDDIT_ADS_MAX_DAILY_USD);
+  if (maxDailyUsd > 0 && body.goal_type === "DAILY_SPEND" && body.goal_value !== undefined) {
+    if (body.goal_value > maxDailyUsd * MICROS_PER_USD) {
+      throw new Error(
+        `Daily budget $${body.goal_value / MICROS_PER_USD} exceeds REDDIT_ADS_MAX_DAILY_USD=$${maxDailyUsd}`
+      );
     }
   }
   return body;
+};
+
+const buildEntityBody = (flags, sets) => {
+  const typed = typedBody(flags);
+  const fromSets = buildBodyFromSets(sets);
+  const targeting =
+    typed.targeting || fromSets.targeting
+      ? { targeting: { ...fromSets.targeting, ...typed.targeting } }
+      : {};
+  return assertSafeBody({ ...typed, ...fromSets, ...targeting });
+};
+
+const buildPostBody = flags => {
+  if (!flags.headline || !flags.image || !flags.url) {
+    throw new Error("posts create requires --headline, --image <public media_url> and --url");
+  }
+  assertSafeBody({ click_url: flags.url });
+  return {
+    type: "IMAGE",
+    headline: flags.headline,
+    allow_comments: !flags["no-comments"],
+    content: [
+      {
+        media_url: flags.image,
+        destination_url: flags.url,
+        call_to_action: flags.cta || "Learn More",
+        ...(flags["display-url"] ? { display_url: flags["display-url"] } : {})
+      }
+    ]
+  };
+};
+
+const requireProfile = flags => {
+  if (!flags.profile) {
+    throw new Error("this command requires --profile <profile_id> (see `profiles list`)");
+  }
+  return flags.profile;
 };
 
 // list/create are account-scoped; show/edit/pause/resume address the entity by its own id.
@@ -230,9 +316,8 @@ const resourceCommands = (resource, getAccount, flags, sets, id) => ({
   list: () =>
     resource.list(getAccount(), { campaign_id: flags.campaign, ad_group_id: flags.adgroup }),
   show: () => resource.get(id()),
-  create: () =>
-    resource.create(getAccount(), { ...typedBody(flags), ...buildBodyFromSets(sets) }),
-  edit: () => resource.update(id(), { ...typedBody(flags), ...buildBodyFromSets(sets) }),
+  create: () => resource.create(getAccount(), buildEntityBody(flags, sets)),
+  edit: () => resource.update(id(), buildEntityBody(flags, sets)),
   pause: () => resource.update(id(), { configured_status: "PAUSED" }),
   resume: () => resource.update(id(), { configured_status: "ACTIVE" })
 });
@@ -267,13 +352,13 @@ const dispatch = async ({ group, command, positionals, flags, sets, api, getAcco
     adgroups: resourceCommands(api.adGroups, getAccount, flags, sets, id),
     ads: resourceCommands(api.ads, getAccount, flags, sets, id),
     creatives: {
-      list: () => {
-        if (!flags.profile) {
-          throw new Error("creatives list requires --profile <profile_id>");
-        }
-        return api.creativeAssets.list(flags.profile);
-      },
+      list: () => api.creativeAssets.list(requireProfile(flags)),
       show: () => api.creativeAssets.get(id())
+    },
+    posts: {
+      list: () => api.posts.list(requireProfile(flags)),
+      show: () => api.posts.get(id()),
+      create: () => api.posts.create(requireProfile(flags), buildPostBody(flags))
     },
     pixels: {
       list: () => api.pixels.list(getAccount())
@@ -468,7 +553,8 @@ const USAGE = {
     cmds: {
       list: "adgroups list [--campaign <campaign_id>]",
       show: "adgroups show <ad_group_id>",
-      create: "adgroups create --campaign <id> --name N [--bid N ...]",
+      create:
+        "adgroups create --campaign <id> --name N [--daily-usd 10] [--geo US,GB] [--bid MICROS ...]",
       edit: "adgroups edit <ad_group_id> [flags]",
       pause: "adgroups pause <ad_group_id>",
       resume: "adgroups resume <ad_group_id>"
@@ -479,7 +565,8 @@ const USAGE = {
     cmds: {
       list: "ads list [--adgroup <ad_group_id>]",
       show: "ads show <ad_id>",
-      create: "ads create --adgroup <id> --name N [flags]",
+      create:
+        "ads create --adgroup <id> --name N --post t3_<id> --click-url <url with utm_source/medium/campaign>",
       edit: "ads edit <ad_id> [flags]",
       pause: "ads pause <ad_id>",
       resume: "ads resume <ad_id>"
@@ -490,6 +577,15 @@ const USAGE = {
     cmds: {
       list: "creatives list --profile <profile_id>",
       show: "creatives show <creative_asset_id>"
+    }
+  },
+  posts: {
+    desc: "Ad posts (the creative an ad points to)",
+    cmds: {
+      list: "posts list --profile <profile_id>",
+      show: "posts show <post_id>",
+      create:
+        "posts create --profile <id> --headline H --image <public image url> --url <utm-tagged url> [--cta 'Learn More'] [--display-url d] [--no-comments]"
     }
   },
   reports: {
