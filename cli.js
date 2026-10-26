@@ -317,11 +317,7 @@ const resourceCommands = (resource, getAccount, flags, sets, id) => ({
     resource.list(getAccount(), { campaign_id: flags.campaign, ad_group_id: flags.adgroup }),
   show: () => resource.get(id()),
   create: () => resource.create(getAccount(), buildEntityBody(flags, sets)),
-  // goal_type is fixed at creation and PATCH rejects it; it is only needed for the cap check above
-  edit: () => {
-    const { goal_type: _goalType, ...body } = buildEntityBody(flags, sets);
-    return resource.update(id(), body);
-  },
+  edit: () => resource.update(id(), buildEntityBody(flags, sets)),
   pause: () => resource.update(id(), { configured_status: "PAUSED" }),
   resume: () => resource.update(id(), { configured_status: "ACTIVE" })
 });
