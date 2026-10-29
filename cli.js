@@ -320,6 +320,13 @@ const requireProfile = flags => {
   return flags.profile;
 };
 
+// Reddit rejects an ad without configured_status with a bare 400, so ask for it up front
+const requireStatus = flags => {
+  if (!["ACTIVE", "PAUSED"].includes(flags.status)) {
+    throw new Error("this command requires --status ACTIVE|PAUSED");
+  }
+};
+
 // list/create are account-scoped; show/edit/pause/resume address the entity by its own id.
 const resourceCommands = (resource, getAccount, flags, sets, id) => ({
   list: () =>
@@ -363,7 +370,13 @@ const dispatch = async ({ group, command, positionals, flags, sets, api, getAcco
     },
     campaigns: resourceCommands(api.campaigns, getAccount, flags, sets, id),
     adgroups: resourceCommands(api.adGroups, getAccount, flags, sets, id),
-    ads: resourceCommands(api.ads, getAccount, flags, sets, id),
+    ads: {
+      ...resourceCommands(api.ads, getAccount, flags, sets, id),
+      create: () => {
+        requireStatus(flags);
+        return api.ads.create(getAccount(), buildEntityBody(flags, sets));
+      }
+    },
     creatives: {
       list: () => api.creativeAssets.list(requireProfile(flags)),
       show: () => api.creativeAssets.get(id())
@@ -579,7 +592,7 @@ const USAGE = {
       list: "ads list [--adgroup <ad_group_id>]",
       show: "ads show <ad_id>",
       create:
-        "ads create --adgroup <id> --name N --post t3_<id> --click-url <url with utm_source/medium/campaign>",
+        "ads create --adgroup <id> --name N --post t3_<id> --click-url <url with utm_source/medium/campaign> --status ACTIVE|PAUSED",
       edit: "ads edit <ad_id> [flags]",
       pause: "ads pause <ad_id>",
       resume: "ads resume <ad_id>"
