@@ -63,6 +63,9 @@ const setDotPath = (obj, path, value) => {
   return obj;
 };
 
+// A value starting with [ or { is JSON, so arrays work: --set 'targeting.platforms=["DESKTOP"]'
+const parseSetValue = value => (/^[[{]/.test(value) ? JSON.parse(value) : value);
+
 const buildBodyFromSets = sets => {
   const body = {};
   for (const entry of sets) {
@@ -70,7 +73,7 @@ const buildBodyFromSets = sets => {
     if (eq === -1) {
       continue;
     }
-    setDotPath(body, entry.slice(0, eq), entry.slice(eq + 1));
+    setDotPath(body, entry.slice(0, eq), parseSetValue(entry.slice(eq + 1)));
   }
   return body;
 };
@@ -219,6 +222,8 @@ const formatCreatives = data => {
 
 // Monetary/bid fields are integers in microcurrency (1 USD = 1,000,000).
 const MICROS_PER_USD = 1_000_000;
+// Reddit rejects ad group daily budgets under $5
+const MIN_DAILY_USD = 5;
 const NUMERIC_FIELDS = new Set(["bid_value", "goal_value", "spend_cap"]);
 const REQUIRED_UTM_PARAMS = ["utm_source", "utm_medium", "utm_campaign"];
 
@@ -272,8 +277,14 @@ const assertSafeBody = (body, env = process.env) => {
       );
     }
   }
+  const isDailyBudget = body.goal_type === "DAILY_SPEND" && body.goal_value !== undefined;
+  if (isDailyBudget && body.goal_value < MIN_DAILY_USD * MICROS_PER_USD) {
+    throw new Error(
+      `Daily budget $${body.goal_value / MICROS_PER_USD} is under Reddit's $${MIN_DAILY_USD} minimum`
+    );
+  }
   const maxDailyUsd = Number(env.REDDIT_ADS_MAX_DAILY_USD);
-  if (maxDailyUsd > 0 && body.goal_type === "DAILY_SPEND" && body.goal_value !== undefined) {
+  if (maxDailyUsd > 0 && isDailyBudget) {
     if (body.goal_value > maxDailyUsd * MICROS_PER_USD) {
       throw new Error(
         `Daily budget $${body.goal_value / MICROS_PER_USD} exceeds REDDIT_ADS_MAX_DAILY_USD=$${maxDailyUsd}`
@@ -327,6 +338,17 @@ const requireStatus = flags => {
   }
 };
 
+// Without bid_strategy and bid_type Reddit answers 400 "data/type is required", which names no
+// real field. Default to automatic CPC bidding, or manual bidding when --bid is given
+const buildAdGroupBody = (flags, sets) => {
+  const body = buildEntityBody(flags, sets);
+  return {
+    bid_strategy: body.bid_value === undefined ? "BIDLESS" : "MANUAL_BIDDING",
+    bid_type: "CPC",
+    ...body
+  };
+};
+
 // list/create are account-scoped; show/edit/pause/resume address the entity by its own id.
 const resourceCommands = (resource, getAccount, flags, sets, id) => ({
   list: () =>
@@ -369,7 +391,13 @@ const dispatch = async ({ group, command, positionals, flags, sets, api, getAcco
       show: () => api.accounts.get(id() || getAccount())
     },
     campaigns: resourceCommands(api.campaigns, getAccount, flags, sets, id),
-    adgroups: resourceCommands(api.adGroups, getAccount, flags, sets, id),
+    adgroups: {
+      ...resourceCommands(api.adGroups, getAccount, flags, sets, id),
+      create: () => {
+        requireStatus(flags);
+        return api.adGroups.create(getAccount(), buildAdGroupBody(flags, sets));
+      }
+    },
     ads: {
       ...resourceCommands(api.ads, getAccount, flags, sets, id),
       create: () => {
@@ -580,7 +608,7 @@ const USAGE = {
       list: "adgroups list [--campaign <campaign_id>]",
       show: "adgroups show <ad_group_id>",
       create:
-        "adgroups create --campaign <id> --name N [--daily-usd 10] [--geo US,GB] [--bid MICROS ...]",
+        "adgroups create --campaign <id> --name N --status ACTIVE|PAUSED [--daily-usd 5..10] [--geo US,GB] [--bid MICROS] [--set 'targeting.platforms=[\"DESKTOP\"]' ...]",
       edit: "adgroups edit <ad_group_id> [flags]",
       pause: "adgroups pause <ad_group_id>",
       resume: "adgroups resume <ad_group_id>"
@@ -761,6 +789,8 @@ module.exports = {
   parseArgs,
   setDotPath,
   buildBodyFromSets,
+  buildAdGroupBody,
+  assertSafeBody,
   buildConversionEvent,
   resolveDate,
   buildReportBody,

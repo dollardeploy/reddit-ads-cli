@@ -49,8 +49,12 @@ Tokens are stored at `${XDG_CONFIG_HOME:-$HOME/.config}/reddit-ads-cli/session.j
 - **Typed flags** for `create`/`edit`: `--name`, `--status` (→ `configured_status`:
   ACTIVE/PAUSED/ARCHIVED/DELETED), `--objective`, `--bid`, `--goal`, `--pixel`,
   `--campaign`, `--adgroup`, `--start`, `--end`, `--spend-cap`. For any other
-  field use repeatable **`--set key=value`** (dot-paths for nesting), or drop to
-  **`raw`** for unwrapped endpoints.
+  field use repeatable **`--set key=value`** (dot-paths for nesting; a `[...]`
+  or `{...}` value is JSON, e.g. `--set 'targeting.platforms=["DESKTOP"]'`), or
+  drop to **`raw`** for unwrapped endpoints.
+- **`adgroups create`** requires `--status`, defaults `bid_strategy=BIDLESS`
+  (`MANUAL_BIDDING` with `--bid`) and `bid_type=CPC`, and refuses daily budgets
+  under Reddit's $5 minimum.
 - **`--json`** on any command prints the raw API response (good for `jq`).
 - **Account:** `--account <id>` overrides the session default.
 - **CAPI:** `events send` needs ≥1 attribution signal (`--email`,
