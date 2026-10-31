@@ -65,17 +65,17 @@ command (e.g. `reddit-ads-cli campaigns`) prints that group's commands.
 The three levels share the same verbs (`list`, `show`, `create`, `edit`,
 `pause`, `resume`):
 
-| Task              | Command                                                                                    |
-| ----------------- | ------------------------------------------------------------------------------------------ |
-| List campaigns    | `reddit-ads-cli campaigns list`                                                            |
-| Show a campaign   | `reddit-ads-cli campaigns show <id>`                                                       |
-| Create a campaign | `reddit-ads-cli campaigns create --name "Launch" --objective CONVERSIONS`                  |
-| Edit a campaign   | `reddit-ads-cli campaigns edit <id> --name "Launch v2"`                                    |
-| Pause / resume    | `reddit-ads-cli campaigns pause <id>` / `... resume <id>`                                  |
-| List ad groups    | `reddit-ads-cli adgroups list [--campaign <id>]`                                           |
-| Create ad group   | `reddit-ads-cli adgroups create --campaign <id> --name "AG" --status PAUSED --daily-usd 5` |
-| List ads          | `reddit-ads-cli ads list [--adgroup <id>]`                                                 |
-| Pause an ad       | `reddit-ads-cli ads pause <id>`                                                            |
+| Task              | Command                                                                   |
+| ----------------- | ------------------------------------------------------------------------- |
+| List campaigns    | `reddit-ads-cli campaigns list`                                           |
+| Show a campaign   | `reddit-ads-cli campaigns show <id>`                                      |
+| Create a campaign | `reddit-ads-cli campaigns create --name "Launch" --objective CONVERSIONS` |
+| Edit a campaign   | `reddit-ads-cli campaigns edit <id> --name "Launch v2"`                   |
+| Pause / resume    | `reddit-ads-cli campaigns pause <id>` / `... resume <id>`                 |
+| List ad groups    | `reddit-ads-cli adgroups list [--campaign <id>]`                          |
+| Create ad group   | `reddit-ads-cli adgroups create --campaign <id> --name "AG" --bid 150`    |
+| List ads          | `reddit-ads-cli ads list [--adgroup <id>]`                                |
+| Pause an ad       | `reddit-ads-cli ads pause <id>`                                           |
 
 Typed flags for `create`/`edit`: `--name`, `--status` (→ `configured_status`,
 one of `ACTIVE`/`PAUSED`/`ARCHIVED`/`DELETED`), `--objective`, `--bid`
@@ -90,13 +90,7 @@ reddit-ads-cli campaigns edit <id> --set goal.value=5000 --set spend_cap=20000
 ```
 
 `--set key=value` is repeatable and supports dot-paths for nested fields. It is
-merged on top of the typed flags. A value starting with `[` or `{` is parsed as
-JSON, so arrays work: `--set 'targeting.platforms=["DESKTOP"]'`.
-
-`adgroups create` requires `--status` and defaults `bid_strategy` to `BIDLESS`
-(`MANUAL_BIDDING` with `--bid`) and `bid_type` to `CPC`; without them Reddit
-answers 400 "data/type is required". Daily budgets under $5 are refused locally,
-because Reddit rejects them.
+merged on top of the typed flags.
 
 ## Creatives
 
